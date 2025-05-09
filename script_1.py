@@ -1,42 +1,53 @@
-import gspread
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-from oauth2client.service_account import ServiceAccountCredentials
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 from datetime import datetime, timedelta
+import os
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name('access-to-sheets-449017-376cfa18b986.json', scope)
-client = gspread.authorize(creds)
 
-sheet_url = "https://docs.google.com/spreadsheets/d/1QCL-vqfLsLafS2VYg8cPjj31PiQk-IwuQHistOaTXDk/edit"
-sheet = client.open_by_url(sheet_url)
-worksheet = sheet.worksheet("testing")
+
+
+
+
+
+
+excel_file = "Skrapede_data.xlsx"
+
+
+
+
+
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
+
+
+
+
+
 def scrape_title(url):
     driver.get(url)
-    time.sleep(5) 
-
+    time.sleep(5)
     try:
         title_tag = driver.find_element(By.XPATH, "//div[@x-text='incident.title']")
-        title = title_tag.text.strip() if title_tag else ""
+        return title_tag.text.strip() if title_tag else ""
     except Exception as e:
-        title = f"Error: {str(e)}"
-    return title
+        return f"Error: {str(e)}"
+
+
+
+
+
 
 def scrape_date(url):
     driver.get(url)
     time.sleep(5)
-
     try:
         date_tag = driver.find_element(By.XPATH, "//div[@x-text='incident.date']")
         date_text = date_tag.text.strip() if date_tag else ""
-
         if "dege siden" in date_text:
             days_ago, exact_date = date_text.split(" - ")
             days_ago = int(days_ago.split()[0])
@@ -44,48 +55,56 @@ def scrape_date(url):
             calculated_date = parsed_date - timedelta(days=days_ago)
             return calculated_date.strftime("%Y-%m-%d %H:%M:%S")
         else:
-            return f"{date_text}"
+            return date_text
     except Exception as e:
         return f"Error: {str(e)}"
-    
+
+
+
+
+
+
 def scrape_description(url):
     driver.get(url)
     time.sleep(5)
-
     try:
         description_tag = driver.find_element(By.XPATH, "//div[@x-html='formatText(incident.body)']")
-        description = description_tag.text.strip() if description_tag else ""
+        return description_tag.text.strip() if description_tag else ""
     except Exception as e:
-        description = f"Error: {str(e)}"
-    return description
+        return f"Error: {str(e)}"
+
+
+
+
+
+
 def scrape_area(url):
     driver.get(url)
     time.sleep(5)
-
     try:
         area_tag = driver.find_element(By.XPATH, "//span[@x-text='area.area']")
-        area = area_tag.text.strip() if area_tag else ""
+        return area_tag.text.strip() if area_tag else ""
     except Exception as e:
-        area = f"Error: {str(e)}"
-    return area
+        return f"Error: {str(e)}"
+    
+
+
+
+
 
 def scrape_impact(url):
     driver.get(url)
     time.sleep(5)
-
     try:
         impact_tag = driver.find_element(By.XPATH, "//div[@x-text='incident.incident.impact']")
-        impact = impact_tag.text.strip() if impact_tag else ""
+        return impact_tag.text.strip() if impact_tag else ""
     except Exception as e:
-        impact = f"Error: {str(e)}"
-    return impact
+        return f"Error: {str(e)}"
 
-def get_next_order_number():
-    rows = worksheet.get_all_values()
-    if len(rows) > 1:
-        last_order_number = int(rows[-1][0])
-        return last_order_number + 1
-    return 1
+
+
+
+
 
 url = "https://www.tusass.gl/da/kundeservice/driftsinformation/"
 title = scrape_title(url)
@@ -93,24 +112,42 @@ date = scrape_date(url)
 description = scrape_description(url)
 area = scrape_area(url)
 impact = scrape_impact(url)
-
 scraping_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-web_scraper_order = get_next_order_number()
 
-new_data = [
-    web_scraper_order, 
-    url,
-    title,
-    date,
-    description,
-    area,
-    impact,
-    scraping_time
-]
 
-next_row = len(worksheet.get_all_values()) + 1
-worksheet.insert_row(new_data, next_row)
 
-print("New data added!")
+
+
+if os.path.exists(excel_file):
+    df = pd.read_excel(excel_file)
+    next_order = df["Order"].max() + 1
+else:
+    df = pd.DataFrame(columns=["Order", "URL", "Title", "Date", "Description", "Area", "Impact", "Scraped At"])
+    next_order = 1
+new_row = {
+    "Order": next_order,
+    "URL": url,
+    "Title": title,
+    "Date": date,
+    "Description": description,
+    "Area": area,
+    "Impact": impact,
+    "Scraped At": scraping_time
+}
+
+
+
+
+
+
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+
+
+
+
+
+df.to_excel(excel_file, index=False)
+print("Nye data gemt i Excel!")
 driver.quit()
